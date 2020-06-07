@@ -3,8 +3,8 @@ LED1 EQU 40H
 LED2 EQU 41H
 LED3 EQU 42H
 LED4 EQU 43H
-NUM EQU 50H
-TEMP1 EQU 51H
+NUM EQU 50H;    用于存储接收到的数字量信号
+TEMP1 EQU 51H;  两个临时变量
 TEMP2 EQU 52H
 
 ORG 0000H
@@ -15,23 +15,23 @@ START:
 MOV R7, #4
 MOV R0, #40H
 INIT_LOOP:
-    MOV @R0, #0
+    MOV @R0, #0;        利用循环初始化LED1-LED4
     INC R0
     DJNZ R7, INIT_LOOP
 MOV NUM, #0
 JMP MAIN
 ;******* 主程序 *******
 MAIN:
-LCALL TRANSFORM
-LCALL DISPLAY
-MOV DPTR, #0DFF8H
+LCALL TRANSFORM;        启动da转换
+LCALL DISPLAY;          调用显示子程序
+MOV DPTR, #0DFF8H;      重新开启ad转换
 MOVX @DPTR, A
 WAIT:
-JB P3.3, WAIT
-MOVX A, @DPTR
+JB P3.3, WAIT;          等待ad转换的完成
+MOVX A, @DPTR;          从0dff8h得到数字量信号
 MOV NUM, A
 LCALL DELAY10
-JMP MAIN
+JMP MAIN;               返回循环的开始
 
 ;******* A->LED *******
 TRANSFORM:
@@ -44,8 +44,7 @@ MOV B, #51
 DIV AB; 此时a存储了10位，b存储了余数
 MOV LED1, A
 MOV A, B
-
-; 2. 个位, 余数乘以10，范围是0000H-00FFH-01F5H
+; 2. 个位, 余数乘以10，再除以51
 MOV B, #10
 MUL AB
 MOV R6, B
@@ -61,17 +60,19 @@ MOV LED2, A
 AJMP DECIMAL
 UNIT_L5:
 ; 情况2: 0000H-00FFH
+; (int)(b/51)
 DOTT:
 MOV B, #51
 DIV AB
 MOV LED2,A
-
-; 3.x小数位
+; 3.x小数位, 余数乘以10, 再除以51
 DECIMAL:
 MOV A, #10
 MUL AB
 MOV R6, B
 CJNE R6, #1, DECIMAL_L5
+; 余数乘以10以后, 高位是1的情况
+; (int)((b+1)/51+5)
 DECIMAL_G5:
 INC A
 MOV B, #51
@@ -79,17 +80,18 @@ DIV AB
 ADD A, #5
 MOV LED4, A
 AJMP TRANSFORM_END
+; 余数乘以10以后, 高位是0的情况
+; (int)(b/51)
 DECIMAL_L5:
 MOV B, #51
 DIV AB
 MOV LED4, A
-
 ; 四舍五入
 ROUND:
 MOV A, #10
 MUL AB
 MOV R6, B
-CJNE R6, #1, TRANSFORM_END    ; 若小数点2位小于5，直接结束
+CJNE R6, #1, TRANSFORM_END;     若小数点2位小于5，直接结束
 ; 小数点第二位大于5
 MOV R6, LED4
 ; 第一个分支：如果小数位为9, 处理进个位，反之直接四舍五入

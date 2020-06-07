@@ -23,41 +23,40 @@ MOV LED1, #0
 MOV LED2, #0
 MOV LED3, #0
 MOV LED4, #0
-MOV T_SET, #0
-MOV T_REAL, #0
-MOV NUM, #0FH
-MOV T_DELTA, #5
-MOV SP, #60H
+MOV T_SET, #0;      拨码盘的预设温度
+MOV T_REAL, #0;     实测温度
+MOV NUM, #0;        实际温度的数字量
+MOV T_DELTA, #5;    温度差阈值
+MOV SP, #60H;       设置堆栈地址, 以防冲突
 ; 设置中断
-SETB EA; 允许中断
-SETB ET1; 允许定时器1中断
-SETB EX1; 允许INT1
-SETB IT1; 边缘触发
+SETB EA;            允许中断
+SETB EX1;           允许INT1
+SETB IT1;           边缘触发
 MOV DPTR, #0DFFAH
-MOVX @DPTR, A
+MOVX @DPTR, A;      开启ad转换
 
 ;******* 主程序 *******
 MAIN:
-LCALL READ_BCD; 读bcd盘
-LCALL DISPLAY; 显示
+LCALL READ_BCD;     读bcd盘
+LCALL DISPLAY;      显示
 ; 比较温度
 MOV A, T_SET
 MOV R0, T_REAL
 CLR CY
 SUBB A, R0
-JC HIGHERT;  开始
-LOWERT:
+JC HIGHERT
+LOWERT:;            低于预设温度的情况
     MOV T_DELTA, A
     CLR CY
     SUBB A, #5
     JC USE_MODE2
-    USE_MODE1:
+    USE_MODE1:;     温差大于5摄氏度, 启用模式1
         LCALL HEATMODE1
         JMP ENDCMP_MAIN
-    USE_MODE2:
+    USE_MODE2:;     温差小于5摄氏度, 启用模式2
         LCALL HEATMODE2
         JMP ENDCMP_MAIN
-HIGHERT:
+HIGHERT:;           高于预设温度的情况, 启用模式3
     LCALL HEATMODE3
     JMP ENDCMP_MAIN
 ENDCMP_MAIN:
@@ -66,13 +65,13 @@ JMP MAIN
 
 ;******* 中断程序 *******
 INT_1:
+; 开始堆栈
 PUSH PSW
 PUSH ACC
-PUSH DPH; DPTR入栈
+PUSH DPH;           DPTR入栈
 PUSH DPL
-LCALL READ_T; 读取温度
-LCALL TRANS; 转换为模拟量
-LCALL DISPLAY
+LCALL READ_T;       读取温度
+LCALL TRANS;        转换为模拟量
 ; 再次启动ad转换
 MOV DPTR, #0DFFAH
 MOVX @DPTR, A
@@ -140,6 +139,7 @@ RET
 TRANS:
 ; a = 0-255 : t = 0-100
 ; T = 2A / 51
+; 处理10位, 先乘以2，再除以51
 DECADE:
 MOV A, NUM
 MOV B, #2
@@ -158,7 +158,7 @@ DECADE_L5:
     DIV AB
     MOV LED3, A
     AJMP CAL_UNIT
-
+; 处理个位, 先乘以10, 再除以51
 CAL_UNIT:
 MOV A, #10
 MUL AB
@@ -176,23 +176,28 @@ UNIT_L5:
     DIV AB
     MOV LED4, A
     AJMP ROUNDING
-
+; 四舍五入
 ROUNDING:
+; 判断是否需要5入
 MOV A, #10
 MUL AB
 MOV R5, B
 CJNE R5, #1, TRANS_END
 MOV R5, LED4
 CJNE R5, #9, ROUNDING_UNIT
+; 需要10位进位, 个位清零的情况
 ROUNDING_DECADE:
     MOV A, LED3
     INC A
     MOV LED3, A
     JMP TRANS_END
+; 需要个位进位, 十位不变的情况
 ROUNDING_UNIT:
     INC R5
     MOV LED4, R5
     JMP TRANS_END
+; 将得到的十位, 个位保存
+; 并计算保存温度的实际数值到T_REAL
 TRANS_END:
 MOV A, LED3
 MOV B, #10
@@ -205,8 +210,8 @@ RET
 ;******* 获取温度 *******
 READ_T:
 MOV DPTR, #0DFFAH;  通道2
-MOVX A, @DPTR
-MOV NUM, A
+MOVX A, @DPTR;      读取通道2的数字
+MOV NUM, A;         存储
 RET
 
 ;******* 显示子程序 *******
