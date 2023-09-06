@@ -1,21 +1,35 @@
 
+
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CV - Genteki</title>
-    <style type="text/css">
-        *{
-            border:0;
-            margin:0;
-        }
-    </style>
+  <title>CV-Genteki</title>
 </head>
 <body>
-    <div style="height: 100vh;">
-        <iframe src="https://raw.githubusercontent.com/Genteki/Genteki/main/img/Genteki_CV.pdf" width="100%" height="100%"></iframe>
-    </div>
+  <div>
+    <canvas id="pdfCanvas"></canvas>
+  </div>
+  
+  <script src="https://raw.githubusercontent.com/Genteki/Genteki/main/img/Genteki_CV.pdf.js"></script>
+  <script>
+    // Load the PDF
+    pdfjsLib.getDocument("[PDF_URL]").promise.then(function(pdf) {
+      // Render the first page
+      pdf.getPage(1).then(function(page) {
+        var canvas = document.getElementById("pdfCanvas");
+        var ctx = canvas.getContext("2d");
+        var viewport = page.getViewport({ scale: 1.5 });
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        var renderContext = {
+          canvasContext: ctx,
+          viewport: viewport
+        };
+        page.render(renderContext);
+      });
+    });
+  </script>
 </body>
 </html>
